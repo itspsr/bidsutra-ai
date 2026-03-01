@@ -4,6 +4,8 @@ import { requireOrgContext } from "@/lib/auth";
 import { planTenderLimitPerMonth } from "@/lib/auth/guards";
 import { countTendersThisMonth } from "@/lib/db/usage";
 import { scoreRiskTotal } from "@/lib/risk-v2";
+import { logger, requestContext } from "@/lib/logger";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -22,9 +24,16 @@ const TenderCreateSchema = z.object({
     .optional()
 });
 
-export async function GET() {
+export async function GET(req: Request) {
+  const ctx = requestContext(req);
   const { supabase, user, profile, org } = await requireOrgContext();
-  if (!user || !profile || !org) return NextResponse.json({ success: false, reason: "unauthorized" }, { status: 401 });
+  if (!user || !profile || !org) {
+    logger.warn({ scope: "api.tenders", message: "unauthorized", meta: {}, ...ctx });
+    return NextResponse.json({ success: false, reason: "unauthorized" }, { status: 401 });
+  }
+
+  const rl = enforceRateLimit({ scope: "api.tenders.get", ip: ctx.ip, orgId: org.id, requestId: ctx.request_id, path: ctx.path });
+  if (!rl.ok) return NextResponse.json({ success: false, reason: "rate_limited" }, { status: 429 });
 
   const { data, error } = await supabase
     .from("tenders")
@@ -38,13 +47,21 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const ctx = requestContext(req);
   const { supabase, user, profile, org } = await requireOrgContext();
-  if (!user || !profile || !org) return NextResponse.json({ success: false, reason: "unauthorized" }, { status: 401 });
+  if (!user || !profile || !org) {
+    logger.warn({ scope: "api.tenders", message: "unauthorized", meta: {}, ...ctx });
+    return NextResponse.json({ success: false, reason: "unauthorized" }, { status: 401 });
+  }
+
+  const rl = enforceRateLimit({ scope: "api.tenders.post", ip: ctx.ip, orgId: org.id, requestId: ctx.request_id, path: ctx.path });
+  if (!rl.ok) return NextResponse.json({ success: false, reason: "rate_limited" }, { status: 429 });
 
   const limit = planTenderLimitPerMonth[org.plan as keyof typeof planTenderLimitPerMonth];
   if (Number.isFinite(limit)) {
     const used = await countTendersThisMonth(org.id);
     if (used >= limit) {
+      logger.warn({ scope: "plan_limit", message: "tenders_limit_reached", meta: { used, limit, plan: org.plan }, org_id: org.id, user_id: user.id, ...ctx });
       return NextResponse.json({ success: false, reason: "plan_limit_reached", meta: { used, limit, plan: org.plan } }, { status: 402 });
     }
   }

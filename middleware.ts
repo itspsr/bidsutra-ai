@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { getClientEnv } from "@/lib/env";
+import { securityHeaders } from "@/lib/security";
 
 const DASH = [
   "/overview",
@@ -23,6 +24,9 @@ export async function middleware(req: NextRequest) {
 
   const env = getClientEnv();
   const res = NextResponse.next();
+
+  const sec = securityHeaders();
+  Object.entries(sec).forEach(([k, v]) => res.headers.set(k, v));
 
   const supabase = createServerClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
     cookies: {

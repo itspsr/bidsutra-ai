@@ -295,3 +295,95 @@ create policy subs_update_owner_admin on public.subscriptions
 create policy logs_rw on public.activity_logs
   for all using (org_id = public.current_org_id())
   with check (org_id = public.current_org_id());
+
+-- =====================================================
+-- OBSERVABILITY / HARDENING TABLES
+-- =====================================================
+create table if not exists public.error_logs (
+  id uuid primary key default gen_random_uuid(),
+  level text not null default 'error',
+  scope text not null,
+  message text not null,
+  meta jsonb,
+  request_id text,
+  org_id uuid references public.organizations(id) on delete set null,
+  user_id uuid references public.users(id) on delete set null,
+  ip text,
+  path text,
+  created_at timestamptz not null default now()
+);
+create index if not exists error_logs_created_idx on public.error_logs(created_at desc);
+create index if not exists error_logs_org_created_idx on public.error_logs(org_id, created_at desc);
+
+create table if not exists public.webhook_events (
+  id uuid primary key default gen_random_uuid(),
+  provider text not null,
+  event_id text not null unique,
+  type text not null,
+  status text not null default 'received',
+  error text,
+  processed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists webhook_events_created_idx on public.webhook_events(created_at desc);
+
+create table if not exists public.security_events (
+  id uuid primary key default gen_random_uuid(),
+  level text not null default 'warn',
+  scope text not null,
+  message text not null,
+  meta jsonb,
+  request_id text,
+  org_id uuid references public.organizations(id) on delete set null,
+  user_id uuid references public.users(id) on delete set null,
+  ip text,
+  path text,
+  severity public.severity_type not null default 'medium',
+  created_at timestamptz not null default now()
+);
+create index if not exists security_events_created_idx on public.security_events(created_at desc);
+create index if not exists security_events_org_created_idx on public.security_events(org_id, created_at desc);
+
+create table if not exists public.api_rate_logs (
+  id uuid primary key default gen_random_uuid(),
+  level text not null default 'info',
+  scope text,
+  message text,
+  meta jsonb,
+  request_id text,
+  org_id uuid references public.organizations(id) on delete set null,
+  user_id uuid references public.users(id) on delete set null,
+  ip text,
+  path text,
+  created_at timestamptz not null default now()
+);
+create index if not exists api_rate_logs_created_idx on public.api_rate_logs(created_at desc);
+
+alter table public.error_logs enable row level security;
+alter table public.webhook_events enable row level security;
+alter table public.security_events enable row level security;
+alter table public.api_rate_logs enable row level security;
+
+-- org-scoped read for admins/owners
+create policy error_logs_read on public.error_logs
+  for select using (
+    org_id = public.current_org_id() and
+    exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('owner','admin'))
+  );
+
+create policy security_events_read on public.security_events
+  for select using (
+    org_id = public.current_org_id() and
+    exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('owner','admin'))
+  );
+
+-- webhook + rate logs: read only for owner/admin (not org-scoped by default)
+create policy webhook_events_read_admin on public.webhook_events
+  for select using (
+    exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('owner','admin'))
+  );
+
+create policy api_rate_logs_read_admin on public.api_rate_logs
+  for select using (
+    exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('owner','admin'))
+  );
