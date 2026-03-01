@@ -1,60 +1,30 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireUser } from "@/lib/auth";
+import { requireOrgContext } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-const OrgSchema = z.object({
-  name: z.string().min(2),
-  gstin: z.string().optional(),
-  pan: z.string().optional(),
-  msme_udyam: z.string().optional(),
-  address: z.string().optional(),
-  turnover_band: z.string().optional(),
-  certifications: z.array(z.string()).optional()
+const OrgUpdate = z.object({
+  name: z.string().min(2)
 });
 
-export async function POST(req: Request) {
-  const { supabase, user } = await requireUser();
-  if (!user) return NextResponse.json({ success: false, reason: "unauthorized" }, { status: 401 });
+export async function GET() {
+  const { user, profile, org } = await requireOrgContext();
+  if (!user || !profile || !org) return NextResponse.json({ success: false, reason: "unauthorized" }, { status: 401 });
+  return NextResponse.json({ success: true, organization: org, role: profile.role });
+}
 
-  const body = await req.json();
-  const parsed = OrgSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ success: false, reason: "invalid-input", issues: parsed.error.flatten() }, { status: 400 });
-  }
+export async function PATCH(req: Request) {
+  const { supabase, user, profile, org } = await requireOrgContext();
+  if (!user || !profile || !org) return NextResponse.json({ success: false, reason: "unauthorized" }, { status: 401 });
+  if (!(profile.role === "owner" || profile.role === "admin")) return NextResponse.json({ success: false, reason: "forbidden" }, { status: 403 });
 
-  // Ensure profile exists
-  await supabase.from("users").upsert({ id: user.id, email: user.email }, { onConflict: "id" });
+  const body = await req.json().catch(() => ({}));
+  const parsed = OrgUpdate.safeParse(body);
+  if (!parsed.success) return NextResponse.json({ success: false, reason: "invalid_input" }, { status: 400 });
 
-  const { data: existing } = await supabase
-    .from("organizations")
-    .select("id")
-    .eq("owner_user_id", user.id)
-    .maybeSingle();
-
-  if (existing?.id) {
-    const { data, error } = await supabase
-      .from("organizations")
-      .update({ ...parsed.data })
-      .eq("id", existing.id)
-      .select("*")
-      .single();
-
-    if (error) return NextResponse.json({ success: false, reason: error.message }, { status: 500 });
-    return NextResponse.json({ success: true, organization: data });
-  }
-
-  const { data, error } = await supabase
-    .from("organizations")
-    .insert({ owner_user_id: user.id, ...parsed.data })
-    .select("*")
-    .single();
-
+  const { data, error } = await supabase.from("organizations").update({ name: parsed.data.name }).eq("id", org.id).select("id,name,plan,created_at").single();
   if (error) return NextResponse.json({ success: false, reason: error.message }, { status: 500 });
-
-  // Create default subscription
-  await supabase.from("subscriptions").insert({ org_id: data.id, plan: "FREE", status: "active" });
 
   return NextResponse.json({ success: true, organization: data });
 }

@@ -1,27 +1,37 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { z } from "zod";
+import { requireOrgContext } from "@/lib/auth";
+import { scoreRiskTotal } from "@/lib/risk-v2";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_: Request, ctx: { params: { id: string } }) {
-  const { supabase, user } = await requireUser();
-  if (!user) return NextResponse.json({ success: false, reason: "unauthorized" }, { status: 401 });
+const Body = z.object({
+  eligibility: z.number().min(0).max(100),
+  financial: z.number().min(0).max(100),
+  penalty: z.number().min(0).max(100),
+  experience: z.number().min(0).max(100),
+  deadline: z.number().min(0).max(100)
+});
+
+export async function POST(req: Request, ctx: { params: { id: string } }) {
+  const { supabase, user, profile, org } = await requireOrgContext();
+  if (!user || !profile || !org) return NextResponse.json({ success: false, reason: "unauthorized" }, { status: 401 });
 
   const tenderId = ctx.params.id;
+  const body = await req.json().catch(() => ({}));
+  const parsed = Body.safeParse(body);
+  if (!parsed.success) return NextResponse.json({ success: false, reason: "invalid_input" }, { status: 400 });
 
-  const { data: org } = await supabase.from("organizations").select("id").eq("owner_user_id", user.id).maybeSingle();
-  if (!org?.id) return NextResponse.json({ success: false, reason: "no-organization" }, { status: 400 });
+  const total = scoreRiskTotal(parsed.data);
 
-  const { data, error } = await supabase
+  // Ensure tender belongs to org
+  const { data: tender } = await supabase.from("tenders").select("id, org_id").eq("id", tenderId).maybeSingle();
+  if (!tender?.id) return NextResponse.json({ success: false, reason: "not_found" }, { status: 404 });
+
+  await supabase.from("tenders").update({ risk_score: total }).eq("id", tenderId);
+  await supabase
     .from("risk_scores")
-    .select("score,level,drivers,created_at")
-    .eq("org_id", org.id)
-    .eq("tender_id", tenderId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .upsert({ tender_id: tenderId, ...parsed.data, total }, { onConflict: "tender_id" });
 
-  if (error) return NextResponse.json({ success: false, reason: error.message }, { status: 500 });
-
-  return NextResponse.json({ success: true, risk: data ?? null });
+  return NextResponse.json({ success: true, total });
 }

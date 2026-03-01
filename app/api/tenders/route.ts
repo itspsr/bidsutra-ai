@@ -1,29 +1,34 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireUser } from "@/lib/auth";
-import { scoreTenderRisk } from "@/lib/risk";
+import { requireOrgContext } from "@/lib/auth";
+import { planTenderLimitPerMonth } from "@/lib/auth/guards";
+import { countTendersThisMonth } from "@/lib/db/usage";
+import { scoreRiskTotal } from "@/lib/risk-v2";
 
 export const dynamic = "force-dynamic";
 
 const TenderCreateSchema = z.object({
   title: z.string().min(4),
-  department: z.string().optional(),
-  state: z.string().optional(),
-  deadline: z.string().optional(), // YYYY-MM-DD
-  est_value_cr: z.number().optional(),
-  raw_text: z.string().optional()
+  authority: z.string().optional(),
+  status: z.enum(["draft", "active", "submitted", "won", "lost", "archived"]).optional(),
+  risk: z
+    .object({
+      eligibility: z.number().min(0).max(100),
+      financial: z.number().min(0).max(100),
+      penalty: z.number().min(0).max(100),
+      experience: z.number().min(0).max(100),
+      deadline: z.number().min(0).max(100)
+    })
+    .optional()
 });
 
 export async function GET() {
-  const { supabase, user } = await requireUser();
-  if (!user) return NextResponse.json({ success: false, reason: "unauthorized" }, { status: 401 });
-
-  const { data: org } = await supabase.from("organizations").select("id").eq("owner_user_id", user.id).maybeSingle();
-  if (!org?.id) return NextResponse.json({ success: false, reason: "no-organization" }, { status: 400 });
+  const { supabase, user, profile, org } = await requireOrgContext();
+  if (!user || !profile || !org) return NextResponse.json({ success: false, reason: "unauthorized" }, { status: 401 });
 
   const { data, error } = await supabase
     .from("tenders")
-    .select("id,title,department,state,deadline,est_value_cr,created_at")
+    .select("id, title, authority, risk_score, status, created_at")
     .eq("org_id", org.id)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -33,64 +38,66 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { supabase, user } = await requireUser();
-  if (!user) return NextResponse.json({ success: false, reason: "unauthorized" }, { status: 401 });
+  const { supabase, user, profile, org } = await requireOrgContext();
+  if (!user || !profile || !org) return NextResponse.json({ success: false, reason: "unauthorized" }, { status: 401 });
 
-  const { data: org } = await supabase.from("organizations").select("*").eq("owner_user_id", user.id).maybeSingle();
-  if (!org?.id) return NextResponse.json({ success: false, reason: "no-organization" }, { status: 400 });
-
-  const body = await req.json();
-  const parsed = TenderCreateSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ success: false, reason: "invalid-input", issues: parsed.error.flatten() }, { status: 400 });
+  const limit = planTenderLimitPerMonth[org.plan as keyof typeof planTenderLimitPerMonth];
+  if (Number.isFinite(limit)) {
+    const used = await countTendersThisMonth(org.id);
+    if (used >= limit) {
+      return NextResponse.json({ success: false, reason: "plan_limit_reached", meta: { used, limit, plan: org.plan } }, { status: 402 });
+    }
   }
 
-  const tenderPayload = {
-    org_id: org.id,
-    source: "upload",
-    title: parsed.data.title,
-    department: parsed.data.department ?? null,
-    state: parsed.data.state ?? null,
-    deadline: parsed.data.deadline ?? null,
-    est_value_cr: parsed.data.est_value_cr ?? null,
-    raw_text: parsed.data.raw_text ?? null
+  const body = await req.json().catch(() => ({}));
+  const parsed = TenderCreateSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ success: false, reason: "invalid_input", issues: parsed.error.flatten() }, { status: 400 });
+  }
+
+  const r = parsed.data.risk ?? {
+    eligibility: 60,
+    financial: 55,
+    penalty: 70,
+    experience: 58,
+    deadline: 62
   };
 
-  const { data: tender, error: tenderErr } = await supabase.from("tenders").insert(tenderPayload).select("*").single();
-  if (tenderErr) return NextResponse.json({ success: false, reason: tenderErr.message }, { status: 500 });
+  const total = scoreRiskTotal(r);
 
-  // org completeness heuristic
-  const completeness = [org.gstin, org.pan, org.msme_udyam, org.address, org.turnover_band].filter(Boolean).length;
-  const orgCompleteness = Math.round((completeness / 5) * 100);
+  const { data: tender, error: tenderErr } = await supabase
+    .from("tenders")
+    .insert({
+      org_id: org.id,
+      title: parsed.data.title,
+      authority: parsed.data.authority ?? null,
+      risk_score: total,
+      status: parsed.data.status ?? "draft"
+    })
+    .select("id, title, authority, risk_score, status, created_at")
+    .single();
 
-  const risk = scoreTenderRisk({
-    deadline: tender.deadline,
-    hasRawText: Boolean(tender.raw_text && tender.raw_text.length > 50),
-    estValueCr: tender.est_value_cr,
-    orgCompleteness
-  });
+  if (tenderErr || !tender) return NextResponse.json({ success: false, reason: tenderErr?.message ?? "insert_failed" }, { status: 500 });
 
-  const { error: riskErr } = await supabase.from("risk_scores").insert({
+  await supabase.from("risk_scores").insert({
     tender_id: tender.id,
-    org_id: org.id,
-    score: risk.score,
-    level: risk.level,
-    drivers: risk.drivers
+    eligibility: r.eligibility,
+    financial: r.financial,
+    penalty: r.penalty,
+    experience: r.experience,
+    deadline: r.deadline,
+    total
   });
 
-  if (riskErr) return NextResponse.json({ success: false, reason: riskErr.message }, { status: 500 });
+  await supabase.from("compliance_items").insert([
+    { tender_id: tender.id, label: "GST Certificate", required: true },
+    { tender_id: tender.id, label: "PAN Card", required: true },
+    { tender_id: tender.id, label: "Work Orders + Completion Certificates", required: true },
+    { tender_id: tender.id, label: "Turnover Proof (CA Certificate)", required: true },
+    { tender_id: tender.id, label: "Bid Undertaking / Annexures", required: true }
+  ]);
 
-  // Create a starter compliance checklist
-  const items = [
-    "GST Certificate",
-    "PAN Card",
-    "MSME/Udyam (if applicable)",
-    "Work Orders + Completion Certificates",
-    "Turnover Proof (CA Certificate)",
-    "Bid Undertaking / Annexures"
-  ].map((label) => ({ tender_id: tender.id, org_id: org.id, label, status: "missing" }));
+  await supabase.from("activity_logs").insert({ org_id: org.id, action: `tender.create:${tender.id}` });
 
-  await supabase.from("compliance_items").insert(items);
-
-  return NextResponse.json({ success: true, tender_id: tender.id, risk });
+  return NextResponse.json({ success: true, tender });
 }
