@@ -1,0 +1,23 @@
+:root {
+  /* Authority Navy + institutional steel + muted gold */
+  --background: 222 43% 6%;
+  --foreground: 210 40% 98%;
+
+  --card: 222 43% 8%;
+  --card-foreground: 210 40% 98%;
+
+  --muted: 222 28% 14%;
+  --muted-foreground: 215 20% 70%;
+
+  --border: 222 24% 18%;
+  --ring: 215 20% 65%;
+
+  --primary: 221 74% 54%;
+  --primary-foreground: 210 40% 98%;
+
+  --secondary: 215 28% 22%;
+  --secondary-foreground: 210 40% 98%;
+
+  --accent: 40 60% 48%;
+  --accent-foreground: 222 43% 10%;
+}
