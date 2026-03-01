@@ -1,10 +1,10 @@
 "use client";
 
-import { cn } from "@/utils/cn";
-import { useSidebar } from "@/hooks/useSidebar";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
+import { useSidebar } from "@/hooks/useSidebar";
+import { cn } from "@/utils/cn";
 import {
   LayoutDashboard,
   Upload,
@@ -32,18 +32,15 @@ export function Sidebar() {
   return (
     <motion.aside
       className={cn(
-        "h-[calc(100vh-64px)] border-r border-white/8 bg-black/25 backdrop-blur",
-        collapsed ? "w-[84px]" : "w-[300px]"
+        "h-[calc(100vh-56px)] border-r border-line bg-surface-3/30 backdrop-blur",
+        collapsed ? "w-[72px]" : "w-[248px]"
       )}
-      animate={{ width: collapsed ? 84 : 300 }}
-      transition={{ type: "spring", stiffness: 220, damping: 26 }}
+      animate={{ width: collapsed ? 72 : 248 }}
+      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
     >
-      <div className="p-4">
-        <div className="text-xs uppercase tracking-widest text-white/45 px-2 mb-3">
-          {collapsed ? "BS" : "Workspace"}
-        </div>
-
-        <nav className="space-y-1">
+      <div className="p-3">
+        <div className="text-[11px] uppercase tracking-widest text-text-2 px-2 py-2">{collapsed ? "BS" : "Workspace"}</div>
+        <nav className="mt-2 space-y-1">
           {nav.map((item) => {
             const active = pathname === item.href;
             const Icon = item.icon;
@@ -52,19 +49,17 @@ export function Sidebar() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-3 rounded-xl px-3 py-2 border border-transparent transition",
-                  active ? "bg-white/8 border-white/10" : "hover:bg-white/5"
+                  "flex items-center gap-3 rounded-md px-2.5 py-2 border border-transparent",
+                  active ? "bg-white/5 border-line" : "hover:bg-white/4"
                 )}
               >
-                <div
-                  className={cn(
-                    "h-9 w-9 rounded-xl grid place-items-center border border-white/10 bg-white/5",
-                    active && "bg-[rgba(196,154,51,0.14)] border-[rgba(196,154,51,0.24)]"
-                  )}
-                >
-                  <Icon size={18} className={cn("text-white/75", active && "text-[hsl(var(--accent))]")} />
+                <div className={cn(
+                  "h-9 w-9 rounded-md border border-line bg-surface-2/50 grid place-items-center",
+                  active && "bg-gold/10 border-gold/25"
+                )}>
+                  <Icon size={16} className={cn("text-text-2", active && "text-gold")} />
                 </div>
-                {!collapsed ? <div className="text-sm text-white/85">{item.label}</div> : null}
+                {!collapsed ? <div className="text-sm text-text-1/90">{item.label}</div> : null}
               </Link>
             );
           })}

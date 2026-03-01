@@ -2,13 +2,13 @@ import { cn } from "@/utils/cn";
 
 export function LogoMark(props: { className?: string }) {
   return (
-    <div className={cn("flex items-center gap-3", props.className)}>
-      <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-navy-700 to-navy-900 border border-white/10 shadow-elev1 grid place-items-center">
-        <div className="h-4 w-4 rounded-sm bg-[hsl(var(--accent))] shadow-[0_0_0_6px_rgba(196,154,51,0.15)]" />
+    <div className={cn("flex items-center gap-2.5", props.className)}>
+      <div className="h-8 w-8 rounded-md border border-line bg-surface-2/60 grid place-items-center">
+        <div className="h-3.5 w-3.5 rounded-sm bg-gold" />
       </div>
       <div className="leading-tight">
-        <div className="text-sm font-semibold tracking-wide text-white/90">BidSutra AI</div>
-        <div className="text-xs text-white/55">GovTech • FinTech Intelligence</div>
+        <div className="text-sm font-semibold tracking-wide text-text-1">BidSutra AI</div>
+        <div className="text-[11px] text-text-2">National Tender Intelligence</div>
       </div>
     </div>
   );

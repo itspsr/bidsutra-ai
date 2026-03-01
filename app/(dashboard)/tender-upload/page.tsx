@@ -4,6 +4,8 @@ import { Shell } from "@/components/dashboard/Shell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 
 export default function TenderUploadPage() {
@@ -23,7 +25,7 @@ export default function TenderUploadPage() {
     setLoading(true);
     setError(null);
     setResult(null);
-    setProgress(20);
+    setProgress(18);
 
     try {
       const res = await fetch("/api/tenders", {
@@ -39,7 +41,7 @@ export default function TenderUploadPage() {
         })
       });
 
-      setProgress(70);
+      setProgress(66);
       const json = await res.json();
       if (!json.success) {
         setError(json.reason || "Failed");
@@ -64,71 +66,40 @@ export default function TenderUploadPage() {
         <Card className="col-span-8">
           <CardHeader>
             <CardTitle>New Tender</CardTitle>
-            <CardDescription>Store tender metadata (PDF parsing can be added next).</CardDescription>
+            <CardDescription>Store metadata now; attach PDF parsing later.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2 space-y-1">
-                <label className="text-sm text-white/70">Title</label>
-                <input
-                  className="w-full h-11 rounded-xl border border-white/10 bg-white/5 px-3 text-sm outline-none"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g., SOC Managed Services (36 Months)"
-                />
+                <label className="text-sm text-text-2">Title</label>
+                <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="SOC Managed Services (36 Months)" />
               </div>
               <div className="space-y-1">
-                <label className="text-sm text-white/70">Department</label>
-                <input
-                  className="w-full h-11 rounded-xl border border-white/10 bg-white/5 px-3 text-sm outline-none"
-                  value={department}
-                  onChange={(e) => setDepartment(e.target.value)}
-                  placeholder="e.g., MeitY / NIC"
-                />
+                <label className="text-sm text-text-2">Department</label>
+                <Input value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="MeitY / NIC" />
               </div>
               <div className="space-y-1">
-                <label className="text-sm text-white/70">State</label>
-                <input
-                  className="w-full h-11 rounded-xl border border-white/10 bg-white/5 px-3 text-sm outline-none"
-                  value={stateName}
-                  onChange={(e) => setStateName(e.target.value)}
-                  placeholder="e.g., Delhi"
-                />
+                <label className="text-sm text-text-2">State</label>
+                <Input value={stateName} onChange={(e) => setStateName(e.target.value)} placeholder="Delhi" />
               </div>
               <div className="space-y-1">
-                <label className="text-sm text-white/70">Deadline</label>
-                <input
-                  className="w-full h-11 rounded-xl border border-white/10 bg-white/5 px-3 text-sm outline-none"
-                  value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
-                  type="date"
-                />
+                <label className="text-sm text-text-2">Deadline</label>
+                <Input value={deadline} onChange={(e) => setDeadline(e.target.value)} type="date" />
               </div>
               <div className="space-y-1">
-                <label className="text-sm text-white/70">Estimated Value (₹ Cr)</label>
-                <input
-                  className="w-full h-11 rounded-xl border border-white/10 bg-white/5 px-3 text-sm outline-none"
-                  value={valueCr}
-                  onChange={(e) => setValueCr(e.target.value)}
-                  placeholder="e.g., 18.5"
-                  inputMode="decimal"
-                />
+                <label className="text-sm text-text-2">Estimated Value (₹ Cr)</label>
+                <Input value={valueCr} onChange={(e) => setValueCr(e.target.value)} placeholder="18.5" inputMode="decimal" />
               </div>
               <div className="col-span-2 space-y-1">
-                <label className="text-sm text-white/70">Tender Text (optional)</label>
-                <textarea
-                  className="w-full min-h-[120px] rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none"
-                  value={rawText}
-                  onChange={(e) => setRawText(e.target.value)}
-                  placeholder="Paste key clauses / extracted text here"
-                />
+                <label className="text-sm text-text-2">Tender Text (optional)</label>
+                <Textarea value={rawText} onChange={(e) => setRawText(e.target.value)} placeholder="Paste extracted clauses or key tender text" />
               </div>
             </div>
 
-            {error ? <div className="mt-4 text-sm text-red-300">{error}</div> : null}
+            {error ? <div className="mt-4 text-sm text-critical">{error}</div> : null}
 
             <div className="mt-5 flex items-center gap-3">
-              <Button disabled={loading || title.trim().length < 4} onClick={submit}>
+              <Button variant="primary" disabled={loading || title.trim().length < 4} onClick={submit}>
                 {loading ? "Creating…" : "Create Tender"}
               </Button>
               <div className="flex-1">
@@ -137,11 +108,11 @@ export default function TenderUploadPage() {
             </div>
 
             {result ? (
-              <div className="mt-6 rounded-xl border border-emerald-400/20 bg-emerald-500/5 p-4">
-                <div className="text-sm font-semibold text-emerald-200">Tender created</div>
-                <div className="mt-1 text-sm text-white/70">Tender ID: {result.tender_id}</div>
-                <div className="mt-2 text-sm text-white/70">
-                  Risk: <span className="text-white/90 font-medium">{result.risk.level}</span> ({result.risk.score}/100)
+              <div className="mt-6 rounded-lg border border-line bg-surface-2/40 p-4">
+                <div className="text-sm font-semibold text-text-1">Tender created</div>
+                <div className="mt-1 text-sm text-text-2">Tender ID: <span className="num text-text-1/90">{result.tender_id}</span></div>
+                <div className="mt-2 text-sm text-text-2">
+                  Risk: <span className="text-text-1 font-medium">{result.risk.level}</span> ({result.risk.score}/100)
                 </div>
               </div>
             ) : null}
@@ -150,13 +121,13 @@ export default function TenderUploadPage() {
 
         <Card className="col-span-4">
           <CardHeader>
-            <CardTitle>Next Steps</CardTitle>
-            <CardDescription>After creation</CardDescription>
+            <CardTitle>Next</CardTitle>
+            <CardDescription>Workflow</CardDescription>
           </CardHeader>
-          <CardContent className="text-sm text-white/70 space-y-2">
-            <div>• Go to Risk Breakdown for drivers</div>
-            <div>• Go to Compliance Center for checklist</div>
-            <div>• Configure GeM Alerts in Settings</div>
+          <CardContent className="text-sm text-text-2 space-y-2">
+            <div>• Review Risk Breakdown drivers</div>
+            <div>• Execute Compliance checklist</div>
+            <div>• Configure GeM Alerts</div>
           </CardContent>
         </Card>
       </div>

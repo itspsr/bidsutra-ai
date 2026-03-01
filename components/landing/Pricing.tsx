@@ -48,7 +48,7 @@ export function Pricing() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>{t.name}</CardTitle>
-                <Badge tone={t.badge === "Most Chosen" ? "gold" : "steel"}>{t.badge}</Badge>
+                <Badge tone={t.badge === "Most Chosen" ? "gold" : "neutral"}>{t.badge}</Badge>
               </div>
               <div className="mt-3 text-3xl font-semibold">{t.price}</div>
               <CardDescription className="mt-1">{t.note}</CardDescription>
