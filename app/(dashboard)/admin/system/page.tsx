@@ -1,65 +1,78 @@
-import { redirect } from "next/navigation";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getAuthedProfile } from "@/lib/auth/profile";
+"use client";
+
 import { Shell } from "@/components/dashboard/Shell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useDemo } from "@/lib/demo/store";
+import { useEffect, useMemo, useState } from "react";
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip } from "recharts";
 
-export const dynamic = "force-dynamic";
+export default function AdminSystemPage() {
+  const { state } = useDemo();
+  const [loading, setLoading] = useState(true);
 
-export default async function AdminSystemPage() {
-  const { org, profile } = await getAuthedProfile();
-  if (!org || !profile) redirect("/login");
-  if (!(profile.role === "owner" || profile.role === "admin")) redirect("/overview?forbidden=1");
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 1500);
+    return () => clearTimeout(t);
+  }, []);
 
-  const supabase = await createSupabaseServerClient();
-
-  const [orgs, tenders, subs, errors24h, webhooks24h] = await Promise.all([
-    supabase.from("organizations").select("id", { count: "exact", head: true }),
-    supabase.from("tenders").select("id", { count: "exact", head: true }),
-    supabase.from("subscriptions").select("id", { count: "exact", head: true }).in("status", ["active", "trialing", "past_due"] as any),
-    supabase
-      .from("error_logs")
-      .select("id", { count: "exact", head: true })
-      .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()),
-    supabase
-      .from("webhook_events")
-      .select("id", { count: "exact", head: true })
-      .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-  ]);
+  const growth = useMemo(() => {
+    const base = [
+      { m: "Aug", u: 880 },
+      { m: "Sep", u: 1040 },
+      { m: "Oct", u: 1210 },
+      { m: "Nov", u: 1390 },
+      { m: "Dec", u: 1560 },
+      { m: "Jan", u: 1710 },
+      { m: "Feb", u: state.metrics.totalUsers }
+    ];
+    return base;
+  }, [state.metrics.totalUsers]);
 
   return (
-    <Shell title="Admin • System" subtitle="Monitoring panel (RLS-scoped; aggregate counts).">
+    <Shell title="Admin • System" subtitle="Investor metrics simulation: users, ARR, growth, webhook health (fake).">
       <div className="grid grid-cols-12 gap-6">
         <Card className="col-span-3">
-          <CardHeader><CardTitle>Organizations</CardTitle><CardDescription>Total</CardDescription></CardHeader>
-          <CardContent><div className="text-3xl font-semibold num">{orgs.count ?? 0}</div></CardContent>
+          <CardHeader><CardTitle>Total users</CardTitle><CardDescription>Simulated</CardDescription></CardHeader>
+          <CardContent>{loading ? <Skeleton className="h-9 w-24" /> : <div className="text-3xl font-semibold num">{state.metrics.totalUsers}</div>}</CardContent>
         </Card>
         <Card className="col-span-3">
-          <CardHeader><CardTitle>Tenders</CardTitle><CardDescription>Total</CardDescription></CardHeader>
-          <CardContent><div className="text-3xl font-semibold num">{tenders.count ?? 0}</div></CardContent>
+          <CardHeader><CardTitle>ARR</CardTitle><CardDescription>Simulated</CardDescription></CardHeader>
+          <CardContent>{loading ? <Skeleton className="h-9 w-28" /> : <div className="text-3xl font-semibold num">₹{state.metrics.arrCr.toFixed(1)} Cr</div>}</CardContent>
         </Card>
         <Card className="col-span-3">
-          <CardHeader><CardTitle>Active Subs</CardTitle><CardDescription>Active/trialing/past_due</CardDescription></CardHeader>
-          <CardContent><div className="text-3xl font-semibold num">{subs.count ?? 0}</div></CardContent>
+          <CardHeader><CardTitle>Analyses</CardTitle><CardDescription>Last 24h</CardDescription></CardHeader>
+          <CardContent>{loading ? <Skeleton className="h-9 w-20" /> : <div className="text-3xl font-semibold num">{state.metrics.riskAnalyses24h}</div>}</CardContent>
         </Card>
         <Card className="col-span-3">
-          <CardHeader><CardTitle>Errors</CardTitle><CardDescription>Last 24h</CardDescription></CardHeader>
-          <CardContent><div className="text-3xl font-semibold num">{errors24h.count ?? 0}</div></CardContent>
+          <CardHeader><CardTitle>Webhook</CardTitle><CardDescription>Status</CardDescription></CardHeader>
+          <CardContent>{loading ? <Skeleton className="h-9 w-28" /> : <Badge tone="success">HEALTHY</Badge>}</CardContent>
         </Card>
 
         <Card className="col-span-12">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Stripe Webhooks</CardTitle>
-                <CardDescription>Last 24h ingest volume</CardDescription>
+                <CardTitle>Growth</CardTitle>
+                <CardDescription>Users over time</CardDescription>
               </div>
-              <Badge tone="teal">Idempotent</Badge>
+              <Badge tone="gold">Investor view</Badge>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold num">{webhooks24h.count ?? 0}</div>
+          <CardContent style={{ height: 260 }}>
+            {loading ? (
+              <Skeleton className="h-[260px] w-full" />
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={growth}>
+                  <XAxis dataKey="m" stroke="rgba(156,163,175,0.55)" axisLine={{ stroke: "rgba(148,163,184,0.12)" }} tickLine={false} />
+                  <YAxis stroke="rgba(156,163,175,0.55)" axisLine={{ stroke: "rgba(148,163,184,0.12)" }} tickLine={false} />
+                  <Tooltip contentStyle={{ background: "rgba(17,24,39,0.92)", border: "1px solid rgba(148,163,184,0.12)", borderRadius: 12 }} />
+                  <Line type="monotone" dataKey="u" stroke="#C8A94C" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -1,5 +1,5 @@
-import MarketingLanding from "./(marketing)/page";
+import { redirect } from "next/navigation";
 
-export default function Page() {
-  return <MarketingLanding />;
+export default function Home() {
+  redirect("/overview");
 }

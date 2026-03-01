@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { useSidebar } from "@/hooks/useSidebar";
+import { useDemo } from "@/lib/demo/store";
 import { cn } from "@/utils/cn";
 import {
   LayoutDashboard,
@@ -27,19 +28,22 @@ const nav = [
 
 export function Sidebar() {
   const { collapsed } = useSidebar();
+  const { ui } = useDemo();
   const pathname = usePathname();
+
+  const collapsedFinal = collapsed || ui.sidebarCollapsed;
 
   return (
     <motion.aside
       className={cn(
         "h-[calc(100vh-56px)] border-r border-line bg-surface-3/30 backdrop-blur",
-        collapsed ? "w-[72px]" : "w-[248px]"
+        collapsedFinal ? "w-[72px]" : "w-[248px]"
       )}
-      animate={{ width: collapsed ? 72 : 248 }}
+      animate={{ width: collapsedFinal ? 72 : 248 }}
       transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
     >
       <div className="p-3">
-        <div className="text-[11px] uppercase tracking-widest text-text-2 px-2 py-2">{collapsed ? "BS" : "Workspace"}</div>
+        <div className="text-[11px] uppercase tracking-widest text-text-2 px-2 py-2">{collapsedFinal ? "BS" : "Workspace"}</div>
         <nav className="mt-2 space-y-1">
           {nav.map((item) => {
             const active = pathname === item.href;
@@ -59,7 +63,7 @@ export function Sidebar() {
                 )}>
                   <Icon size={16} className={cn("text-text-2", active && "text-gold")} />
                 </div>
-                {!collapsed ? <div className="text-sm text-text-1/90">{item.label}</div> : null}
+                {!collapsedFinal ? <div className="text-sm text-text-1/90">{item.label}</div> : null}
               </Link>
             );
           })}

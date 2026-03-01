@@ -4,19 +4,19 @@ import { LogoMark } from "@/components/brand/LogoMark";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { CommandBar } from "@/components/dashboard/CommandBar";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Bell, LogOut, PanelLeft } from "lucide-react";
 import { useSidebar } from "@/hooks/useSidebar";
+import { useDemo } from "@/lib/demo/store";
 
 export function Topbar() {
   const sidebar = useSidebar();
+  const { state, actions } = useDemo();
 
   async function signOut() {
     try {
-      const supabase = createSupabaseBrowserClient();
-      await supabase.auth.signOut();
+      localStorage.removeItem("bidsutra_demo_state_v3");
     } finally {
-      location.assign("/");
+      location.assign("/overview");
     }
   }
 
@@ -36,8 +36,13 @@ export function Topbar() {
         <CommandBar />
 
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" leftIcon={<Bell size={16} />}>Alerts</Button>
-          <Button variant="ghost" size="sm" leftIcon={<LogOut size={16} />} onClick={signOut}>Sign out</Button>
+          <div className="hidden lg:flex items-center gap-2 rounded-md border border-line bg-surface-2/50 px-3 h-10 text-sm text-text-2">
+            <span className="text-text-2">{state.org?.name ?? "Workspace"}</span>
+            <span className="text-text-2/50">•</span>
+            <span className="text-text-1 num uppercase">{state.plan}</span>
+          </div>
+          <Button variant="ghost" size="sm" leftIcon={<Bell size={16} />} onClick={() => actions.markActivity("Alert simulated • New GeM match", "gold")}>Alerts</Button>
+          <Button variant="ghost" size="sm" leftIcon={<LogOut size={16} />} onClick={signOut}>Reset demo</Button>
           <Button variant="primary" size="sm" onClick={() => location.assign("/tender-upload")}>New</Button>
         </div>
       </div>
